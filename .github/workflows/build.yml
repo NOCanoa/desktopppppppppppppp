@@ -115,13 +115,6 @@ jobs:
           echo "version=$(surfer get version | xargs)" >> $GITHUB_OUTPUT
           echo "buildtime=$(date +"%H:%M:%S")" >> $GITHUB_OUTPUT
 
-      - uses: stefanzweifel/git-auto-commit-action@v4
-        if: ${{ inputs.update_version }}
-        with:
-          commit_message: 🔖 Update version to ${{ steps.data.outputs.version }}
-          commit_user_name: Zen Browser Robot
-          commit_user_email: zen-browser-bot@users.noreply.github.com
-
   check-release:
     runs-on: ubuntu-latest
     needs: [build-data]
