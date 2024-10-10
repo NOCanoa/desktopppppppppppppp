@@ -225,43 +225,6 @@ jobs:
           name: zen.source.tar.gz
           path: ./zen.source.tar.gz
 
-  windows-step-1:
-    name: Windows build step 1 (PGO build)
-    uses: ./.github/workflows/windows-release-build.yml
-    needs: [build-data]
-    permissions:
-      contents: write
-    secrets: inherit
-    with:
-      build-version: ${{ needs.build-data.outputs.version }}
-      generate-gpo: true
-      profile-data-path-archive: zen-windows-x86_64-profile-data-and-jarlog.zip
-      release-branch: ${{ inputs.update_branch }}
-
-  windows-step-2:
-    name: Windows build step 2 (Generate profile data)
-    uses: ./.github/workflows/windows-profile-build.yml
-    permissions:
-      contents: write
-    secrets: inherit
-    needs: [windows-step-1, build-data]
-    with:
-      build-version: ${{ needs.build-data.outputs.version }}
-      profile-data-path-archive: zen.win64-pgo-stage-1.zip
-      release-branch: ${{ inputs.update_branch }}
-
-  windows-step-3:
-    name: Windows build step 3 (build with profile data)
-    uses: ./.github/workflows/windows-release-build.yml
-    permissions:
-      contents: write
-    secrets: inherit
-    needs: [build-data, windows-step-2]
-    with:
-      build-version: ${{ needs.build-data.outputs.version }}
-      generate-gpo: false
-      release-branch: ${{ inputs.update_branch }}
-
   linux:
     name: Linux build
     uses: ./.github/workflows/linux-release-build.yml
@@ -272,89 +235,11 @@ jobs:
     with:
       build-version: ${{ needs.build-data.outputs.version }}
       release-branch: ${{ inputs.update_branch }}
-
-  mac:
-    name: macOS build
-    uses: ./.github/workflows/macos-release-build.yml
-    permissions:
-      contents: write
-    secrets: inherit
-    needs: [build-data]
-    with:
-      build-version: ${{ needs.build-data.outputs.version }}
-      release-branch: ${{ inputs.update_branch }}
-
-  appimage:
-    name: AppImage build - Linux ${{ matrix.generic == true && 'generic' || 'specific' }}
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        generic: [true, false]
-    needs: [linux]
-    steps:
-      - name: Install Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          token: ${{ secrets.DEPLOY_KEY }}
-
-      - name: Install dependencies
-        run: |
-          npm install -g pnpm
-          sudo apt-get update
-          sudo apt-get -y install libfuse2 desktop-file-utils
-
-      - name: Download linux build
-        uses: actions/download-artifact@v4
-        with:
-          name: zen.linux-${{ matrix.generic == true && 'generic' || 'specific' }}.tar.bz2
-
-      - name: Execute AppImage build
-        run: |
-          set -eux
-          rm AppDir/.DirIcon || true
-          cp configs/branding/${{ inputs.update_branch }}/logo128.png AppDir/usr/share/icons/hicolor/128x128/apps/zen.png
-          cp configs/branding/${{ inputs.update_branch }}/logo128.png AppDir/zen.png && ln -s zen.png AppDir/.DirIcon
-
-          APPDIR=AppDir
-          tar -xvf *.tar.* && rm -rf *.tar.*
-          mv zen/* $APPDIR/
-          wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x *.AppImage
-          chmod +x ./AppDir/AppRun
-          echo "AppDir: $APPDIR"
-          ls -al
-          find .
-          ls -al "$APPDIR"
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage --comp zstd --mksquashfs-opt -Xcompression-level --mksquashfs-opt 10 \
-          -u "gh-releases-zsync|$GITHUB_REPOSITORY_OWNER|desktop|latest|zen-${{ matrix.generic == true && 'generic' || 'specific' }}.AppImage.zsync" \
-          "$APPDIR" zen-${{ matrix.generic == true && 'generic' || 'specific' }}.AppImage
-          mkdir dist
-          mv zen*AppImage* dist/.
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: zen-${{ matrix.generic == true && 'generic' || 'specific' }}.AppImage
-          path: ./dist/zen-${{ matrix.generic == true && 'generic' || 'specific' }}.AppImage
-
-      - name: Upload artifact (ZSync)
-        uses: actions/upload-artifact@v4
-        with:
-          name: zen-${{ matrix.generic == true && 'generic' || 'specific' }}.AppImage.zsync
-          path: ./dist/zen-${{ matrix.generic == true && 'generic' || 'specific' }}.AppImage.zsync
-
   release:
     if: ${{ inputs.create_release || inputs.update_branch == 'twilight' }}
     permissions: write-all
     name: Release
-    needs: [build-data, linux, windows-step-3, check-release, mac, appimage, source]
+    needs: [build-data, linux,source]
     runs-on: ubuntu-latest
     environment:
       name: ${{ inputs.update_branch == 'alpha' && 'Deploy-Release' || 'Deploy-Twilight' }}
@@ -570,11 +455,6 @@ jobs:
             --output io.github.zen_browser.zen.yml \
             --template-root ./zen-browser/flatpak
 
-      - name: Commit changes
-        run: |
-          git add io.github.zen_browser.zen.yml
-          git commit -m "Update to version ${{ needs.build-data.outputs.version }}"
-
       - name: Clean up
         run: |
           rm -rf zen-browser
@@ -586,46 +466,3 @@ jobs:
         with:
           name: io.github.zen_browser.zen.yml
           path: ./io.github.zen_browser.zen.yml
-
-      - name: Create pull request
-        uses: peter-evans/create-pull-request@v6
-        env:
-          GIT_TRACE: 1
-          GIT_CURL_VERBOSE: 1
-        with:
-          token: ${{ secrets.DEPLOY_KEY }}
-          commit-message: 🚀 Update to version ${{ needs.build-data.outputs.version }}
-          title: 🚀 Update to version ${{ needs.build-data.outputs.version }}
-          body: |
-            This PR updates the Zen Browser Flatpak package to version ${{ needs.build-data.outputs.version }}.
-
-            @${{ github.actor }} please review and merge this PR.
-          branch: update-to-${{ needs.build-data.outputs.version }}
-          base: master
-          git-token: ${{ secrets.DEPLOY_KEY }}
-          delete-branch: true
-
-  release-homebrew:
-    if: ${{ inputs.create_release && inputs.update_branch == 'alpha' }}
-    permissions: write-all
-    name: Homebrew release
-    needs: [release, mac, build-data]
-    runs-on: macos-latest
-
-    steps:
-      - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@master
-        with:
-          cask: true
-          test-bot: false
-
-      - name: Setup git
-        uses: Homebrew/actions/git-user-config@master
-        with:
-          username: zen-browser-bot
-
-      - name: Bump zen-browser
-        uses: Homebrew/actions/bump-packages@master
-        with:
-          token: ${{ secrets.DEPLOY_KEY }}
-          casks: zen-browser
