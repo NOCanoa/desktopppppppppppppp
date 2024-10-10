@@ -125,7 +125,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          token: ${{ secrets.DEPLOY_KEY }}
 
       - name: Install pnpm
         run: npm install -g pnpm
@@ -175,7 +174,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          token: ${{ secrets.DEPLOY_KEY }}
 
       - name: Setup git
         run: |
@@ -226,6 +224,7 @@ jobs:
     with:
       build-version: ${{ needs.build-data.outputs.version }}
       release-branch: ${{ inputs.update_branch }}
+      
   release:
     if: ${{ inputs.create_release || inputs.update_branch == 'twilight' }}
     permissions: write-all
@@ -239,7 +238,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          token: ${{ secrets.DEPLOY_KEY }}
 
       - name: Git Pull
         run: |
@@ -255,7 +253,6 @@ jobs:
         with:
           repository: zen-browser/updates-server
           path: updates-server
-          token: ${{ secrets.DEPLOY_KEY }}
 
       - name: Copy update manifests
         env:
@@ -276,46 +273,6 @@ jobs:
 
           cp -a ../macos_update_manifest_aarch64/.  updates/
           cp -a ../macos_update_manifest_x64/.  updates/
-
-      - uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: 🚀 Update update manifests
-          commit_user_name: Zen Browser Robot
-          commit_user_email: zen-browser-bot@users.noreply.github.com
-          repository: ./updates-server
-
-        # If we are on twilight, we want to just update the twilight tag's release
-      - name: Update twilight tag
-        if: ${{ inputs.update_branch == 'twilight' }}
-        uses: 'marvinpinto/action-automatic-releases@latest'
-        with:
-          files: |
-            zen.source.tar.gz
-            zen.linux-generic.tar.bz2
-            zen.linux-specific.tar.bz2
-            zen-generic.AppImage
-            zen-generic.AppImage.zsync
-            zen-specific.AppImage
-            zen-specific.AppImage.zsync
-            zen.win-generic.zip
-            zen.win-specific.zip
-            linux.mar
-            linux-generic.mar
-            windows-generic.mar
-            windows.mar
-            macos-x64.mar
-            macos-aarch64.mar
-            zen.installer.exe
-            zen.installer-generic.exe
-            zen.macos-x64.dmg
-            zen.macos-aarch64.dmg
-          automatic_release_tag: 'twilight'
-          title: 'Twilight build - ${{ needs.build-data.outputs.version }} (${{ needs.build-data.outputs.build_date }} at ${{ needs.build-data.outputs.build_time }})'
-          draft: false
-          prerelease: true
-          repo_token: ${{ github.token }}
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: release-github
         uses: 'marvinpinto/action-automatic-releases@latest'
@@ -358,7 +315,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: zen-browser/release-utils
-          token: ${{ secrets.DEPLOY_KEY }}
 
       - name: Install dependencies
         run: |
@@ -371,17 +327,10 @@ jobs:
           npm run build-flatpak -- \
             --version ${{ needs.build-data.outputs.version }}
 
-      - uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: 🚀 Update releases for flatpak
-          commit_user_name: Zen Browser Robot
-          commit_user_email: zen-browser-bot@users.noreply.github.com
-
       - name: Clone flatpak repo
         uses: actions/checkout@v4
         with:
           repository: zen-browser/flatpak
-          token: ${{ secrets.DEPLOY_KEY }}
           path: flatpak
 
       - name: Move releases.xml
@@ -415,7 +364,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: flathub/io.github.zen_browser.zen
-          token: ${{ secrets.DEPLOY_KEY }}
 
       - name: Download linux generic build
         uses: actions/download-artifact@v4
@@ -451,9 +399,3 @@ jobs:
           rm -rf zen-browser
           rm -rf archive.tar
           rm -rf zen.linux-generic.tar.bz2
-
-      - name: Upload flatpak manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: io.github.zen_browser.zen.yml
-          path: ./io.github.zen_browser.zen.yml
