@@ -52,7 +52,6 @@ jobs:
           echo "GITHUB_REPOSITORY: ${{ github.repository }}"
           echo "GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}"
           echo "GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}"
-          echo "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}"
 
   build-data:
     permissions:
